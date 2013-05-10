@@ -1,0 +1,8 @@
+1942.v
+../tv80/rtl/core/tv80n.v
+../tv80/rtl/core/tv80_core.v
+../tv80/rtl/core/tv80_alu.v
+../tv80/rtl/core/tv80_mcode.v
+../tv80/rtl/core/tv80_reg.v
+../sqm/sqm_amp.v
+../sqm/sqmusic.v
