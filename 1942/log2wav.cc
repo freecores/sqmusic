@@ -18,37 +18,74 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <string.h>
+#include <string>
 
 using namespace std;
+
+class Args {
+public:
+  int skip;
+  string filename;
+  string outputfile;
+  Args( int argc, char *argv[]) : skip(0), outputfile("out.wav") {
+    int k=1;    
+    bool filename_known=false;
+    while( k < argc ) {    
+      if( strcmp(argv[k],"-l")==0 ) {
+        k++;
+        if( k >= argc ) throw "Expected number of lines to skip after -l";
+        skip = atoi( argv[k] );
+        cout << skip << " lines will be skipped\n";
+        k++;
+        continue;
+      }
+      if( strcmp(argv[k],"-o")==0 ) {
+        k++;
+        if( k >= argc ) throw "Expected output file name after -o";
+        outputfile = argv[k];
+        k++;
+        continue;
+      }      
+      if( filename_known ) { 
+        cout << "Unknown parameter " << argv[k] << "\n";
+        throw "Incorrect command line";
+      }
+      filename = argv[k];
+      filename_known = true;
+      k++;
+    }
+    if( filename=="-" ) filename=string("/dev/stdin");
+  }
+};
 
 int main(int argc, char *argv[]) {
 	try {
 		ifstream fin;
-		if( argc == 2) 
-			fin.open(argv[1]);
-		else
-			fin.open("/dev/stdin");
-		ofstream fout("out.wav");
-		if( fin.bad() ) throw "Cannot open input file";
-		if( fout.bad() ) throw "Cannot open output file";		
+		Args ar( argc, argv );
+		cout << "Input file " << ar.filename << "\n";
+		fin.open(ar.filename.c_str());
+		ofstream fout(ar.outputfile.c_str());
+		if( fin.bad() || fin.fail() ) throw "Cannot open input file";
+		if( fout.bad() || fout.fail() ) throw "Cannot open output file";		
 		assert( sizeof(short int)==2 );
 		char buffer[1024];
 		int data=0;
-		
+				
 		// depending on the simulator the following "while"
 		// section might no be needed or modified
 		// It just skips simulator output until the real data
-		// starts to come out
-		while( !fin.eof() ) {
+		// starts to come out		
+		for( int k=0; k<ar.skip && !fin.eof(); k++ ) {
 			fin.getline( buffer, sizeof(buffer) );
-			if( strcmp(buffer,"ncsim> run" )==0) break;
+			//if( strcmp(buffer,"ncsim> run" )==0) break;
 		} 
-		
 		if( fin.eof() ) throw "Data not found";
 		fout.seekp(44);
-		while( !fin.eof() ) {
+		while( !fin.eof() && !fin.bad() && !fin.fail() ) {
 			short int value;
 			fin.getline( buffer, sizeof(buffer) );
+			
 			if( buffer[0]=='S' ) break; // reached line "Simulation complete"
 			value = atoi( buffer );
 			fout.write( (char*) &value, sizeof(value) );

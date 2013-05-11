@@ -17,7 +17,9 @@ communicate with the AY-3-8910 (or compatible) chip.  This small code
 provides a 2-byte memory map as expected by Capcom games
 */
 `timescale 1ns / 1ps
-module AY_3_8910_capcom(
+module AY_3_8910_capcom
+#( parameter dump_writes=0, parameter id=0 )
+(
 	input reset_n,
   input clk, // CPU clock
 	input sound_clk, // normally slower than the CPU clock
@@ -57,17 +59,19 @@ always @(posedge sample or negedge reset_n) begin
 	end
 end
 
-SQMUSIC core( .reset_n(reset_n), .clk(sound_clk), .data_in(latches[1]),
+SQMUSIC #(dump_writes, id) core( .reset_n(reset_n), .clk(sound_clk), .data_in(latches[1]),
 	.adr( latches[0][3:0] ), .rd(1'b0), .wr(core_wr), .A(A), .B(B), .C(C) );
 endmodule
 
 /*  The AY core does
 */
-module SQMUSIC( // pins are not multiplexed
+module SQMUSIC
+#( parameter dump_writes=0, parameter id=0 ) // set to 1 to dump register writes
+( // note that input ports are not multiplexed
   input reset_n,
   input clk,
   input  [7:0] data_in,
-  output reg [7:0] data_out, // read functionality not implemented yet
+  output reg [7:0] data_out,
   input  [3:0] adr,
   input rd, // read
   input wr,  // write
@@ -124,7 +128,12 @@ always @(posedge clk or reset_n) begin
   else begin
     if( rd ) 
       data_out=regarray[ adr ];
-    else if( wr ) regarray[adr]=data_in;
+    else if( wr ) begin
+      regarray[adr]=data_in;
+      if( dump_writes ) begin
+        $display("#%d, %t, %d, %d", id, $realtime, adr, data_in );
+      end
+    end
   end
 end
 

@@ -5,6 +5,9 @@ Instructions to play Capcom's 1942 music with a Verilog simulator:
 2. Compile and run "dump.cc" program to convert the binary file to hexadecimal format
 3. Place file in ../rom folder (see 1942.v file for details on location)
 4. Run verilog simulation from 1942 folder using the "gather" file
+
+  $ iverilog -s sound1942 -f gather -o sound1942 && vvp sound1942 > sim.log
+
 5. Pass the output of the simulation through "log2wav.cc", either using a pipe or storing it on a file. Check that the data dump is caught correctly by log2wav as some simulators will add extra information at the beginning of the file
 
 Other:

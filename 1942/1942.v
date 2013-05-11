@@ -17,12 +17,8 @@
 `timescale 1ns / 1ps
 
 module sound1942;
-  wire [7:0]cpu_in, cpu_out;
-  wire [15:0]adr;
-  wire m1_n, mreq_n, iorq_n, rd_n, wr_n, rfsh_n, halt_n, busak_n;
-  wire bus_error;
   // inputs to Z80
-  reg reset_n, clk, wait_n, int_n, nmi_n, busrq_n, sound_clk;
+  reg reset_n, clk, int_n, sound_clk;
 
   initial begin
     //$dumpfile("dump.lxt");
@@ -32,12 +28,10 @@ module sound1942;
 //		$shm_open("1942.shm");
 //		$shm_probe( sound1942, "ACTFS" );
     reset_n=0;
-    nmi_n=1;
-    wait_n=1;
     #1500 reset_n=1;
 		// change finish time depending on song
-//		#400e6 $finish;
-    #10e9 $finish;
+		//#4e6 $finish;
+    #5e9 $finish;
   end    
   
   always begin // main clock
@@ -60,34 +54,42 @@ module sound1942;
 			#(int_low_time) int_n=1;
 		end
   end
-			
   
-  tv80n cpu( //outputs
-  .m1_n(m1_n), .mreq_n(mreq_n), .iorq_n(iorq_n), .rd_n(rd_n), .wr_n(wr_n), 
-  .rfsh_n(rfsh_n), .halt_n(halt_n), .busak_n(busak_n), .A(adr), .do(cpu_out), 
-  // Inputs
-  .reset_n(reset_n), .clk(clk), .wait_n(wait_n), 
-  .int_n(int_n), .nmi_n(nmi_n), .busrq_n(busrq_n), .di(cpu_in) );
-  
-  MAP map( .adr(adr), .din(cpu_out), .dout(cpu_in), .clk(clk), 
-		.sound_clk( sound_clk ), .wr_n(wr_n), .rd_n(rd_n), 
-		.bus_error(bus_error), .reset_n(reset_n) );
-  
-
-
+	always #22676 $display("%d", amp0_y+amp1_y ); // 44.1kHz sample
+	
+	wire [3:0] ay0_a, ay0_b, ay0_c, ay1_a, ay1_b, ay1_c;
+  computer_1942 #(0) game( .clk(clk), .sound_clk(sound_clk),  
+    .int_n(int_n), .reset_n(reset_n), 
+    .ay0_a(ay0_a), .ay0_b(ay0_b), .ay0_c(ay0_c),
+    .ay1_a(ay1_a), .ay1_b(ay1_b), .ay1_c(ay1_c) );
+  // sound amplifier:
+  wire [15:0] amp0_y, amp1_y;
+	SQM_AMP amp0( .A(ay0_a), .B(ay0_b), .C(ay0_c), .Y( amp0_y ));
+	SQM_AMP amp1( .A(ay1_a), .B(ay1_b), .C(ay1_c), .Y( amp1_y ));	
 endmodule
 
 /////////////////////////////////////////////////////
-module MAP(
-  input [15:0] adr,
-  input [7:0] din,
-  output [7:0] dout,  
+module computer_1942
+#(parameter dump_regs=0) // set to 1 to dump sqmusic registers
+(
   input clk,
 	input sound_clk,
-  input rd_n,
-  input wr_n,
 	input reset_n,
-  output bus_error );
+	input int_n,
+	output [3:0] ay0_a,
+	output [3:0] ay0_b,
+	output [3:0] ay0_c,	
+	output [3:0] ay1_a,
+	output [3:0] ay1_b,
+	output [3:0] ay1_c
+);
+  reg wait_n, nmi_n, busrq_n;
+  
+  wire [7:0]cpu_in, cpu_out;
+  wire [15:0]adr;
+  wire m1_n, mreq_n, iorq_n, rd_n, wr_n, rfsh_n, halt_n, busak_n;
+  wire bus_error;
+
 	
 	wire [3:0] ay0_a, ay0_b, ay0_c, ay1_a, ay1_b, ay1_c;
 	wire [15:0] amp0_y, amp1_y;
@@ -100,13 +102,25 @@ module MAP(
   wire ay_1_enable = adr==16'hC000 || adr==16'hC001 ? 1:0;  
   assign bus_error = ~ram_enable & ~rom_enable & ~latch_enable &
     ~ay_0_enable & ~ay_1_enable;
-  assign dout=ram_out | rom_out | latch_out;
+  assign cpu_in=ram_out | rom_out | latch_out;
 /*
 	always @(negedge rd_n)
 		if( !rd_n	&& adr==8'h38 ) 
 			$display("IRQ processing started @ %t us",$time/1e6);
 */   
-  RAM ram(.adr(adr[10:0]), .din(din), .dout(ram_out), .enable( ram_enable ),
+  initial begin
+    nmi_n=1;
+    wait_n=1;
+  end
+
+  tv80n cpu( //outputs
+  .m1_n(m1_n), .mreq_n(mreq_n), .iorq_n(iorq_n), .rd_n(rd_n), .wr_n(wr_n), 
+  .rfsh_n(rfsh_n), .halt_n(halt_n), .busak_n(busak_n), .A(adr), .do(cpu_out), 
+  // Inputs
+  .reset_n(reset_n), .clk(clk), .wait_n(wait_n), 
+  .int_n(int_n), .nmi_n(nmi_n), .busrq_n(busrq_n), .di(cpu_in) );
+
+  RAM ram(.adr(adr[10:0]), .din(cpu_out), .dout(ram_out), .enable( ram_enable ),
     .clk(clk), .wr_n(wr_n), .rd_n(rd_n) );
   ROM rom(.adr(adr[13:0]), .data(rom_out), .enable(rom_enable),
    .rd_n(rd_n), .clk(clk));
@@ -115,18 +129,12 @@ module MAP(
 
 //	fake_ay ay_0( .adr(adr[0]), .din(din), .clk(clk), .wr_n(~ay_0_enable|wr_n) );
 
-	AY_3_8910_capcom ay_0( .reset_n(reset_n), .clk(clk), .sound_clk(sound_clk),
-		.din(din), .adr(adr[0]), .wr_n(wr_n), .cs_n(~ay_0_enable),
+	AY_3_8910_capcom #(dump_regs,0) ay_0( .reset_n(reset_n), .clk(clk), .sound_clk(sound_clk),
+		.din(cpu_out), .adr(adr[0]), .wr_n(wr_n), .cs_n(~ay_0_enable),
 		.A(ay0_a), .B(ay0_b), .C(ay0_c) );
-	AY_3_8910_capcom ay_1( .reset_n(reset_n), .clk(clk), .sound_clk(sound_clk),
-		.din(din), .adr(adr[0]), .wr_n(wr_n), .cs_n(~ay_1_enable),
+	AY_3_8910_capcom #(dump_regs,1) ay_1( .reset_n(reset_n), .clk(clk), .sound_clk(sound_clk),
+		.din(cpu_out), .adr(adr[0]), .wr_n(wr_n), .cs_n(~ay_1_enable),
 		.A(ay1_a), .B(ay1_b), .C(ay1_c) );
-
-	SQM_AMP amp0( .A(ay0_a), .B(ay0_b), .C(ay0_c), .Y( amp0_y ));
-	SQM_AMP amp1( .A(ay1_a), .B(ay1_b), .C(ay1_c), .Y( amp1_y ));	
-	
-	always #22676 $display("%d", amp0_y+amp1_y ); // 44.1kHz sample
-//  initial $dumpvars(0,ym2203_0);
 endmodule
 
 //////////////////////////////////////////////////////////
