@@ -6,3 +6,4 @@
 ../tv80/rtl/core/tv80_reg.v
 ../sqm/sqm_amp.v
 ../sqm/sqmusic.v
+../sqm/sqm_pwm.v

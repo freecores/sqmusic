@@ -28,7 +28,8 @@ public:
   int skip;
   string filename;
   string outputfile;
-  Args( int argc, char *argv[]) : skip(0), outputfile("out.wav") {
+  bool stereo;
+  Args( int argc, char *argv[]) : skip(0), outputfile("out.wav"), stereo(false) {
     int k=1;    
     bool filename_known=false;
     while( k < argc ) {    
@@ -45,6 +46,11 @@ public:
         if( k >= argc ) throw "Expected output file name after -o";
         outputfile = argv[k];
         k++;
+        continue;
+      }      
+      if( strcmp(argv[k],"-s")==0 ) { // stereo
+        k++;
+        stereo = true;
         continue;
       }      
       if( filename_known ) { 
@@ -106,12 +112,13 @@ int main(int argc, char *argv[]) {
 		fout.write( (char*)&aux, 4 );// suubchunk 1 size
 		short int aux_short = 1; 
 		fout.write( (char*)&aux_short, 2 ); // audio format (1)
+		aux_short = ar.stereo ? 2 : 1;
 		fout.write( (char*)&aux_short, 2 ); // num channels (1)
 		aux=44100;
 		fout.write( (char*)&aux, 4 );
-		aux=44100*1*2;		
+		aux=44100*1*2 * (ar.stereo?2:1);		
 		fout.write( (char*)&aux, 4 ); // byte rate
-		aux_short=2;		
+		aux_short= ar.stereo ? 4 : 2;		
 		fout.write( (char*)&aux_short, 2 ); // block align		
 		aux_short=16;		
 		fout.write( (char*)&aux_short, 2 ); // bits per sample

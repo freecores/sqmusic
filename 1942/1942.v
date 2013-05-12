@@ -21,8 +21,9 @@ module sound1942;
   reg reset_n, clk, int_n, sound_clk;
 
   initial begin
-    //$dumpfile("dump.lxt");
-    //$dumpvars(1,map.ym2203_0);    
+/*    $dumpfile("dump.lxt");
+    $dumpvars(1,pwm0);
+    $dumpvars(1,pwm1);*/
 //		$dumpvars();
 //    $dumpon;
 //		$shm_open("1942.shm");
@@ -31,7 +32,7 @@ module sound1942;
     #1500 reset_n=1;
 		// change finish time depending on song
 		//#4e6 $finish;
-    #5e9 $finish;
+    #6e9 $finish;
   end    
   
   always begin // main clock
@@ -55,18 +56,39 @@ module sound1942;
 		end
   end
   
-	always #22676 $display("%d", amp0_y+amp1_y ); // 44.1kHz sample
-	
+
 	wire [3:0] ay0_a, ay0_b, ay0_c, ay1_a, ay1_b, ay1_c;
   computer_1942 #(0) game( .clk(clk), .sound_clk(sound_clk),  
     .int_n(int_n), .reset_n(reset_n), 
     .ay0_a(ay0_a), .ay0_b(ay0_b), .ay0_c(ay0_c),
     .ay1_a(ay1_a), .ay1_b(ay1_b), .ay1_c(ay1_c) );
   // sound amplifier:
+  /*
   wire [15:0] amp0_y, amp1_y;
 	SQM_AMP amp0( .A(ay0_a), .B(ay0_b), .C(ay0_c), .Y( amp0_y ));
-	SQM_AMP amp1( .A(ay1_a), .B(ay1_b), .C(ay1_c), .Y( amp1_y ));	
-endmodule
+	SQM_AMP amp1( .A(ay1_a), .B(ay1_b), .C(ay1_c), .Y( amp1_y ));
+	always #22676 $display("%d", amp0_y+amp1_y ); // 44.1kHz sample	
+	*/
+	reg vhf_clk;
+	always begin
+	  vhf_clk=0;
+	  forever begin
+	    if( vhf_clk ) begin
+	      $display("%d, %d, %d, %d, %d, %d",
+	        pwm0_a, pwm0_b, pwm0_c, pwm1_a, pwm1_b, pwm1_c );
+	    end
+	    #10 vhf_clk <= ~vhf_clk; // 50MHz
+	  end
+	end
+	
+  SQM_PWM_1 a0pwm( .clk(vhf_clk), .reset_n(reset_n), .din(ay0_a), .pwm(pwm0_a) );
+  SQM_PWM_1 b0pwm( .clk(vhf_clk), .reset_n(reset_n), .din(ay0_b), .pwm(pwm0_b) );
+  SQM_PWM_1 c0pwm( .clk(vhf_clk), .reset_n(reset_n), .din(ay0_c), .pwm(pwm0_c) );
+
+  SQM_PWM_1 a1pwm( .clk(vhf_clk), .reset_n(reset_n), .din(ay1_a), .pwm(pwm1_a) );
+  SQM_PWM_1 b1pwm( .clk(vhf_clk), .reset_n(reset_n), .din(ay1_b), .pwm(pwm1_b) );
+  SQM_PWM_1 c1pwm( .clk(vhf_clk), .reset_n(reset_n), .din(ay1_c), .pwm(pwm1_c) );
+	endmodule
 
 /////////////////////////////////////////////////////
 module computer_1942
