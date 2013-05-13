@@ -43,37 +43,37 @@ SQM_PWM_LOG dec( .din(din), .rep0(rep0), .rep1(rep1), .zero(zero) );
 
 always @(posedge clk or negedge reset_n) begin
   if( !reset_n ) begin
-    count=0;
-    last0=0;
-    last1=1;
+    count<=0;
+    last0<=0;
+    last1<=1;
   end 
   else
     if( zero ) begin
-      pwm=0;
-      count=0;
+      pwm  <=0;
+      count<=0;
     end
     else if( last0!=rep0 || last1!=rep1 ) begin
       last0 <= rep0;
       last1 <= rep1;
-      count = 0;
-      pwm=0;
+      count <= 0;
+      pwm   <=0;
     end
     else if( last0==1 && last1==1 ) begin
-      pwm=clk;
-      count=0;
+      pwm  <=clk;
+      count<=0;
     end
     else begin
       if( pwm && count==last1-1 ) begin
-        count=0;
-        pwm=0;
+        count<=0;
+        pwm  <=0;
       end
       else if( !pwm && count==last0-1 ) begin
-        count=0;
-        pwm=1;
+        count<=0;
+        pwm  <=1;
       end
       else begin
         count<=count+1;
-        pwm<=pwm;
+        pwm  <=pwm;
       end
     end
 end

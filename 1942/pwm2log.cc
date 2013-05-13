@@ -54,7 +54,9 @@ int main( int argc, char *argv[] ) {
   try {
     long int sample=0;
     // skip first line
-    cin.getline( buf, sizeof(buf) );
+		buf[0]=0;
+		while( strncmp("1942 START",buf, 11 ) && !cin.eof() && !cin.fail() )
+    	cin.getline( buf, sizeof(buf) );
     
     cin.getline( buf, sizeof(buf) );
     while( buf[0] && !cin.eof() ) {

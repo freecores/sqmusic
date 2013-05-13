@@ -30,39 +30,24 @@ module AY_3_8910_capcom
   output [3:0]A,B,C // channel outputs
 );
 
-reg [7:0] latches[1:0];
-reg core_wr;
-wire sample = clk & ~cs_n & ~wr_n;
+reg [3:0] adr_latch;
+wire sample = ~cs_n & ~wr_n;
+wire core_wr = adr & sample;
 reg count;
 
-always @(posedge sound_clk or negedge reset_n) begin
-	if(!reset_n) begin
-		count=0;
-	end
-	else begin
-		if( !count && core_wr) count=1;
-		else if( core_wr ) begin
-			count=0;
-			core_wr=0;
-		end
-	end
+always @(posedge clk or negedge reset_n) begin
+	if(!reset_n) 
+		adr_latch <= 0;
+	else 
+	if( sample && adr==0 )
+		adr_latch <= din[3:0];
 end
 
-always @(posedge sample or negedge reset_n) begin
-	if(!reset_n) begin
-		latches[0]=0;
-		latches[1]=0;
-	end
-	else begin
-		latches[adr] = din;
-		if(adr) core_wr=1;
-	end
-end
-
-SQMUSIC #(dump_writes, id) core( .reset_n(reset_n), .clk(sound_clk), .data_in(latches[1]),
-	.adr( latches[0][3:0] ), .rd(1'b0), .wr(core_wr), .A(A), .B(B), .C(C) );
+SQMUSIC #(dump_writes, id) core( .reset_n(reset_n), .clk(sound_clk), .data_in(din),
+	.adr( adr_latch ), .rd(1'b0), .wr(core_wr), .A(A), .B(B), .C(C) );
 endmodule
 
+//////////////////////////////////////////////////////////////////////////////
 /*  The AY core does
 */
 module SQMUSIC
@@ -110,17 +95,16 @@ assign A=regarray[10][4]? envelope&{4{Amix}} : regarray[10][3:0]&{4{Amix}};
 assign B=regarray[11][4]? envelope&{4{Bmix}} : regarray[10][3:0]&{4{Bmix}};
 assign C=regarray[12][4]? envelope&{4{Cmix}} : regarray[10][3:0]&{4{Cmix}};
 
-integer aux;
-
 // 16-count divider
-always @(posedge clk or reset_n) begin
+always @(posedge clk or negedge reset_n) begin
   if( !reset_n) 
-    clkdiv16=0;
+    clkdiv16<=0;
   else
     clkdiv16<=clkdiv16+1;
 end
 
-always @(posedge clk or reset_n) begin
+integer aux;
+always @(posedge clk or negedge reset_n) begin
   if( !reset_n ) begin
     data_out=0;
     for(aux=0;aux<=15;aux=aux+1) regarray[aux]=0;
@@ -159,10 +143,10 @@ initial clkdiv=0;
 
 assign div = period==1 ? clk : clkdiv;
 
-always @(posedge clk or reset_n) begin
+always @(posedge clk or negedge reset_n) begin
   if( !reset_n) begin
-    count=0;
-    clkdiv=0;
+    count<=0;
+    clkdiv<=0;
   end
   else begin
     if( period==0 ) begin
@@ -171,7 +155,7 @@ always @(posedge clk or reset_n) begin
     end
     else if( count >= period ) begin
         count <= 0;
-        clkdiv = ~clkdiv;
+        clkdiv <= ~clkdiv;
       end
       else count <= count+1;
   end
@@ -192,12 +176,12 @@ wire poly17_zero = poly17==0;
 assign noise=poly17[16];
 wire noise_clk;
 
-always @(posedge noise_clk or reset_n) begin
+always @(posedge noise_clk or negedge reset_n) begin
   if( !reset_n) begin
-    poly17=0;
+    poly17<=0;
   end
   else begin
-     poly17={ poly17[0] ^ poly17[2] ^ poly17_zero, poly17[16:1] };
+     poly17<={ poly17[0] ^ poly17[2] ^ poly17_zero, poly17[16:1] };
   end
 end
 
@@ -217,12 +201,12 @@ reg dir; // direction
 reg stop;
 reg [3:0]prev_ctrl; // last control orders
 
-always @(posedge clk or reset_n) begin
+always @(posedge clk or negedge reset_n) begin
   if( !reset_n) begin
-    gain=4'hF;
-    dir=0;
-    prev_ctrl=0;
-    stop=1;
+    gain<=4'hF;
+    dir<=0;
+    prev_ctrl<=0;
+    stop<=1;
   end
   else begin
     if (ctrl!=prev_ctrl) begin

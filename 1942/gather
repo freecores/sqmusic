@@ -1,4 +1,5 @@
 1942.v
+computer_1942.v
 ../tv80/rtl/core/tv80n.v
 ../tv80/rtl/core/tv80_core.v
 ../tv80/rtl/core/tv80_alu.v

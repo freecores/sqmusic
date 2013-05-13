@@ -20,6 +20,7 @@
 #include <assert.h>
 #include <string.h>
 #include <string>
+#include <signal.h>
 
 using namespace std;
 
@@ -65,6 +66,12 @@ public:
   }
 };
 
+bool sigint_abort=false;
+
+void sigint_handle(int x ) {
+	sigint_abort = true;	
+}
+
 int main(int argc, char *argv[]) {
 	try {
 		ifstream fin;
@@ -81,14 +88,16 @@ int main(int argc, char *argv[]) {
 		// depending on the simulator the following "while"
 		// section might no be needed or modified
 		// It just skips simulator output until the real data
-		// starts to come out		
+		// starts to come out	
 		for( int k=0; k<ar.skip && !fin.eof(); k++ ) {
 			fin.getline( buffer, sizeof(buffer) );
 			//if( strcmp(buffer,"ncsim> run" )==0) break;
 		} 
 		if( fin.eof() ) throw "Data not found";
 		fout.seekp(44);
-		while( !fin.eof() && !fin.bad() && !fin.fail() ) {
+		signal( 2, sigint_handle ); // capture CTRL+C in order to save the
+		// WAV header before quiting
+		while( !fin.eof() && !fin.bad() && !fin.fail() && !sigint_abort ) {
 			short int value;
 			fin.getline( buffer, sizeof(buffer) );
 			
