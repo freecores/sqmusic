@@ -26,7 +26,8 @@ module computer_1942
 	output [3:0] ay0_c,	
 	output [3:0] ay1_a,
 	output [3:0] ay1_b,
-	output [3:0] ay1_c
+	output [3:0] ay1_c,
+	output bus_error
 );
   reg wait_n, nmi_n, busrq_n;
   
