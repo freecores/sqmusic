@@ -30,7 +30,10 @@ public:
   string filename;
   string outputfile;
   bool stereo;
-  Args( int argc, char *argv[]) : skip(0), outputfile("out.wav"), stereo(false) {
+	const char *waitline;
+  Args( int argc, char *argv[]) : 
+		skip(0), outputfile("out.wav"), stereo(false), waitline(NULL)
+	{
     int k=1;    
     bool filename_known=false;
     while( k < argc ) {    
@@ -49,6 +52,13 @@ public:
         k++;
         continue;
       }      
+      if( strcmp(argv[k],"--wait")==0 ) {
+        k++;
+        if( k >= argc ) throw "Expected output file name after --wait";
+        waitline = argv[k];
+        k++;
+        continue;
+      }    
       if( strcmp(argv[k],"-s")==0 ) { // stereo
         k++;
         stereo = true;
@@ -62,7 +72,7 @@ public:
       filename_known = true;
       k++;
     }
-    if( filename=="-" ) filename=string("/dev/stdin");
+    if( filename=="-" || !filename_known ) filename=string("/dev/stdin");
   }
 };
 
@@ -93,6 +103,13 @@ int main(int argc, char *argv[]) {
 			fin.getline( buffer, sizeof(buffer) );
 			//if( strcmp(buffer,"ncsim> run" )==0) break;
 		} 
+		// wait for a given line in the output
+		buffer[0]=0;
+		if( ar.waitline ) 
+			while( !fin.eof() && strcmp( buffer, ar.waitline) ) 
+				fin.getline( buffer, sizeof(buffer) );
+		
+		// start conversion
 		if( fin.eof() ) throw "Data not found";
 		fout.seekp(44);
 		signal( 2, sigint_handle ); // capture CTRL+C in order to save the
