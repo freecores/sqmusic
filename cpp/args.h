@@ -18,18 +18,19 @@ typedef std::vector<struct argument_t*> arg_vector_t;
 
 struct argument_t {
   std::string short_name, long_name;
-  typedef enum { integer, text, flag } arg_type;
+  typedef enum { integer, text, flag, real } arg_type;
   arg_type type;
   std::string description;
   // possible states
   int integer_value;
   std::string string_value;
+  float real_value;  
   bool state, req;
   
   argument_t( arg_vector_t& av, const char* long_name, arg_type type,
-    const char* desc, bool required=false ) 
+    const char* desc="", bool required=false ) 
     : long_name(long_name), type( type ), description( desc ),
-      req(required), state(false), integer_value(0)
+      req(required), state(false), integer_value(0), real_value(0)
   {
     if( !this->long_name.empty() ) {
       this->short_name = "-" + this->long_name.substr(0,1);
@@ -51,9 +52,7 @@ public:
   Args( int argc, char *argv[], arg_vector_t& legal_args ) //throw const char *
   : legal_args( legal_args ), 
     help_arg( legal_args, "help", argument_t::flag, "Display usage information")
-  {
-    //std::copy( legal_args.begin(), legal_args.cnd(), legal_args.begin() );    
-    if( argc== 1 ) help_arg.set(); // show help if there are no args.
+  {    
     // look for default argument
     def_arg=NULL;
     for( int j=0; j<legal_args.size(); j++ ) {
@@ -87,6 +86,14 @@ public:
             matched=true;
             continue;
           }
+          if( a.type == argument_t::real ) {
+            k++;
+            if( k>=argc ) throw_error("Expecting input after "+a.long_name+" param");
+            a.real_value = atof(argv[k]);
+            a.set();
+            matched=true;
+            continue;
+          }
         }
       }
       if( !matched && def_arg!=NULL )
@@ -110,7 +117,7 @@ public:
       }
     }
   }
-  bool help_request() { if( help_arg.state ) show_help(); return help_arg.state; }
+  bool help_request() { if( help_arg.is_set() ) show_help(); return help_arg.is_set(); }
   std::string brackets( const argument_t& a, std::string s ) {
     return a.req ?  "<"+s+">" : "["+s+"]"; 
   }
@@ -128,6 +135,11 @@ public:
       if( !a.long_name.empty() && !a.long_name.empty() ) aux += " | ";
       if( !a.short_name.empty() ) aux+= a.short_name;
       std::cout << brackets( a, aux );
+      switch( a.type ) {
+        case argument_t::integer: std::cout << " followed by integer number. "; break;
+        case argument_t::real   : std::cout << " followed by real number. "; break;        
+        case argument_t::text   : std::cout << " followed by string. "; break;        
+      }
       if( !a.description.empty() ) std::cout << ":  " << a.description;
       std::cout << "\n";
     }
