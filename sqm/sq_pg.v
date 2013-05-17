@@ -1,3 +1,15 @@
+/*
+	SQmusic
+
+  (c) Jose Tejada Gomez, 9th May 2013
+  You can use this file following the GNU GENERAL PUBLIC LICENSE version 3
+  Read the details of the license in:
+  http://www.gnu.org/licenses/gpl.txt
+  
+  Send comments to: jose.tejada@ieee.org
+
+*/
+
 module sq_pg(
 	input clk,
 	input reset_n,
