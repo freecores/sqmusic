@@ -13,11 +13,12 @@
 `timescale 1ns/1ps
 
 module sq_slot(
-	input clk,
-	input reset_n,
-	input [10:0] fnumber,
-	input [2:0] block,
-  input [3:0] multiple
+	input  clk,
+	input  reset_n,
+	input  [10:0] fnumber,
+	input  [2:0]  block,
+  input  [3:0]  multiple,
+  output [12:0] linear
 );
 	
 wire [9:0]phase;
@@ -41,7 +42,7 @@ sq_pow pow(
   .clk     (clk), 
   .reset_n (reset_n), 
   .x       (sin_log),
-  .y       (sin_linear) );
+  .y       (linear) );
 
 endmodule
 
@@ -97,33 +98,82 @@ endmodule
 module sq_pow(
   input clk,
   input reset_n,
-  input [12:0]x,
-  output [12:0]y // LSB is the sign. 0=positive, 1=negative
+  input rd_n, // read enable, active low
+  input [12:0]x, // LSB is the sign. 0=positive, 1=negative
+  output reg [12:0]y 
 );
 
+parameter st_input    = 3'b000;
+parameter st_lut_read = 3'b001;
+parameter st_shift    = 3'b010;
+parameter st_sign     = 3'b011;
+parameter st_output   = 3'b100;
+
+reg [2:0] state;
 reg [12:0] pow_table[255:0];
 
 initial begin
   $readmemh("../tables/pow_table.hex", pow_table);
 end
 reg [7:0]index;
-reg [2:0]exp;
+reg [3:0]exp;
 reg sign;
 
-wire [12:0] raw = pow_table[index] >> exp;
-assign y = sign ? ~raw+13'b1 : raw; // regular 2's complement
+reg [12:0] raw, shifted, final;
 
 always @(posedge clk or negedge reset_n ) begin
 	if( !reset_n ) begin
 		index <= 8'b0;
 		exp   <= 3'b0;
 		sign  <= 1'b0;
+		raw   <= 13'b0;
+		shifted <= 13'b0;
+		y     <= 12'b0;
+		state <= st_input;
 	end
 	else begin
-	  exp   <= x[12:10];
-	  index <= x[9:1];
-	  sign  <= x[0];
+	  case ( state )
+	    st_input: begin
+	      if( !rd_n ) begin
+	        exp   <= x[12:9];
+	        index <= x[8:1];
+	        sign  <= x[0];
+	        state <= st_lut_read;
+	      end
+	      else state <= st_lut_read;
+	      end
+	   st_lut_read: begin
+	      raw   <= pow_table[index];
+	      state <= st_shift;
+	      end
+	   st_shift: begin
+	      shifted <= raw >> exp;
+	      state   <= st_sign;
+	      end
+	   st_sign: begin
+	      final <= sign ? ~shifted + 1'b1 : shifted;
+	      state <= st_output;
+	      end
+	   st_output: begin
+	      y     <= final;
+	      state <= st_input;
+	      end
+	  endcase
 	end
+end
+
+always @(posedge clk or negedge reset_n ) begin
+	if( !reset_n ) 
+	  raw <= 13'b0;
+	else 
+	  raw <= pow_table[index];
+end
+
+always @(posedge clk or negedge reset_n ) begin
+	if( !reset_n ) 
+	  shifted <= 13'b0;
+	else 
+	  shifted <= raw >> exp;
 end
 
 endmodule

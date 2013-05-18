@@ -15,9 +15,10 @@
 module sq_opn_basic;
 
 reg clk, reset_n;
+wire signed [12:0] linear;
 
-parameter fnumber = 11'h40E;
-parameter block   =  3'h4;
+parameter fnumber = 11'h1;
+parameter block   =  3'h0;
 parameter multiple=  4'h1;
 
 initial begin
@@ -25,13 +26,14 @@ initial begin
   $dumpon;
   reset_n = 0;
   #300 reset_n=1;
-  #1e8 // 10ms
+  $display("SOUND START");
+  #(1e10)
   $finish;
 end
 
 always begin
   clk = 0;
-  forever #(125/2) clk = ~clk & reset_n;
+  forever #(125/2*144) clk = ~clk & reset_n;
 end
 
 sq_slot slot(
@@ -39,8 +41,11 @@ sq_slot slot(
 	.reset_n (reset_n),
 	.fnumber (fnumber),
 	.block   (block),
-  .multiple(multiple)
+  .multiple(multiple),
+  .linear  (linear)
 );
+
+// always #(1e9/44100) $display("%d", linear);
 	
 
 endmodule

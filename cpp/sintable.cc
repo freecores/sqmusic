@@ -90,9 +90,14 @@ void dump_sin_tab() {
 }
 
 void dump_composite() {
-	// cout.setf( ios::hex, ios::basefield );
   for( int i=0; i<SIN_LEN; i++ ) {
-    cout << sin_tab[i] << "," << tl_tab[ sin_tab[i] ] << "\n";
+    int v = sin_tab[i];
+    int m = (v>>1)&0xFF;
+    int lin = tl_tab[m];
+    int exp = v>>9;
+    int adj0 = lin>>exp;
+    int adj1 = (v&1) ? -1*adj0 : adj0;
+    cout << v << "," << lin << "," << exp << "," << adj0 << "," << adj1 << "\n";
   }
 }
 
@@ -109,13 +114,16 @@ int main(int argc, char *argv[]) {
     "dump sine wave" );
   argument_t arg_pow( legal_args, "pow", argument_t::flag,
     "dump power table" );
+  argument_t arg_comp( legal_args, "composite", argument_t::flag,
+    "dump pow[ sine ] composite function" );
   Args args_parser( argc, argv, legal_args );
   if( args_parser.help_request() ) { return 0; }
   if( argc==1 ) { args_parser.show_help(); return 0; }
   init_tables();  
-	//dump_composite();
+
 	if( arg_hex.is_set() ) cout.setf( ios::hex, ios::basefield );
 	if( arg_pow.is_set() ) dump_tl_tab();
-	if( arg_sin.is_set() ) dump_sin_tab();	
+	if( arg_sin.is_set() ) dump_sin_tab();
+	if( arg_comp.is_set() ) dump_composite();		
 	return 0;
 }
