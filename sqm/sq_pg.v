@@ -18,11 +18,34 @@ module sq_slot(
 	input  [10:0] fnumber,
 	input  [2:0]  block,
   input  [3:0]  multiple,
-  output [12:0] linear
+  input  [6:0]  totallvl, // total level
+  output [13:0] linear
 );
+
+reg [7:0]state;
+
+parameter st_pg_count  = 8'h01;
+parameter st_pow_read  = 8'h04;
 	
 wire [9:0]phase;
-wire [12:0] sin_log, sin_linear;
+wire [13:0] sin_log, sin_linear;
+reg  pg_ce_n, pow_rd_n;
+
+always @(posedge clk or negedge reset_n ) begin
+  if (!reset_n) begin
+    state   <= 8'b0;
+    pg_ce_n <= 1'b1;
+    pow_rd_n<= 1'b1;
+  end
+  else begin
+    if( state == 8'd143 )
+      state <= 8'd0;
+    else
+      state <= state+1;
+    pg_ce_n <=  state == st_pg_count ? 1'b0 : 1'b1;
+    pow_rd_n<=  state == st_pow_read ? 1'b0 : 1'b1;
+  end
+end
 
 sq_pg pg( 
   .clk     (clk), 
@@ -30,40 +53,48 @@ sq_pg pg(
   .fnumber (fnumber), 
   .block   (block),
   .multiple(multiple),
+  .ce_n    (pg_ce_n),
   .phase   (phase) );
 
 sq_sin sin(
   .clk     (clk), 
   .reset_n (reset_n), 
   .phase   (phase),
+  .gain    (totallvl),
   .val     (sin_log) );
   
 sq_pow pow(
   .clk     (clk), 
   .reset_n (reset_n), 
+  .rd_n    (pow_rd_n),
   .x       (sin_log),
   .y       (linear) );
 
 endmodule
 
+///////////////////////////////////////////////////////////////////
 module sq_pg(
 	input clk,
 	input reset_n,
 	input [10:0] fnumber,
 	input [2:0] block,
   input [3:0] multiple,
+  input ce_n, // count enable, active low
 	output [9:0]phase );
 
 reg [19:0] count;
 assign phase = count[19:10];
 
-wire [19:0]fmult = fnumber << block;
+wire [19:0]fmult = fnumber << (block-1);
 
 always @(posedge clk or negedge reset_n ) begin
 	if( !reset_n )
 		count <= 20'b0;
 	else begin
-	  count <= count + ( multiple==4'b0 ? fmult>> 1 : fmult*multiple);
+	  if( !ce_n )
+  	  count <= count + ( multiple==4'b0 ? fmult>> 1 : fmult*multiple);
+  	else 
+  	  count <= count;
 	end
 end
 
@@ -73,8 +104,9 @@ endmodule
 module sq_sin(
   input clk,
   input reset_n,
+  input [6:0]gain, // gain factor in log scale
   input [9:0]phase,
-  output [12:0] val // LSB is the sign. 0=positive, 1=negative
+  output [13:0] val // LSB is the sign. 0=positive, 1=negative
 );
 
 reg [12:0] sin_table[1023:0];
@@ -83,7 +115,7 @@ initial begin
   $readmemh("../tables/sin_table.hex", sin_table);
 end
 reg [9:0]last_phase;
-assign val = sin_table[last_phase];
+assign val = sin_table[last_phase] + { gain, 6'h0 };
 
 always @(posedge clk or negedge reset_n ) begin
 	if( !reset_n )
@@ -99,8 +131,8 @@ module sq_pow(
   input clk,
   input reset_n,
   input rd_n, // read enable, active low
-  input [12:0]x, // LSB is the sign. 0=positive, 1=negative
-  output reg [12:0]y 
+  input [13:0]x, // LSB is the sign. 0=positive, 1=negative
+  output reg [13:0]y 
 );
 
 parameter st_input    = 3'b000;
@@ -116,31 +148,31 @@ initial begin
   $readmemh("../tables/pow_table.hex", pow_table);
 end
 reg [7:0]index;
-reg [3:0]exp;
+reg [4:0]exp;
 reg sign;
 
-reg [12:0] raw, shifted, final;
+reg [13:0] raw, shifted, final;
 
 always @(posedge clk or negedge reset_n ) begin
 	if( !reset_n ) begin
-		index <= 8'b0;
-		exp   <= 3'b0;
-		sign  <= 1'b0;
-		raw   <= 13'b0;
-		shifted <= 13'b0;
-		y     <= 12'b0;
+		index   <=  8'b0;
+		exp     <=  3'b0;
+		sign    <=  1'b0;
+		raw     <= 14'b0;
+		shifted <= 14'b0;
+		y       <= 14'b0;
 		state <= st_input;
 	end
 	else begin
 	  case ( state )
 	    st_input: begin
 	      if( !rd_n ) begin
-	        exp   <= x[12:9];
+	        exp   <= x[13:9];
 	        index <= x[8:1];
 	        sign  <= x[0];
 	        state <= st_lut_read;
 	      end
-	      else state <= st_lut_read;
+	      else state <= st_input;
 	      end
 	   st_lut_read: begin
 	      raw   <= pow_table[index];
@@ -156,6 +188,9 @@ always @(posedge clk or negedge reset_n ) begin
 	      end
 	   st_output: begin
 	      y     <= final;
+	      state <= st_input;
+	      end
+	   default: begin
 	      state <= st_input;
 	      end
 	  endcase
