@@ -13,6 +13,7 @@
 
 #include <iostream>
 #include <cmath>
+#include "../cpp/args.h"
 
 using namespace std;
 
@@ -23,9 +24,8 @@ using namespace std;
 #define SIN_BITS        10
 #define SIN_LEN         (1<<SIN_BITS)
 #define SIN_MASK        (SIN_LEN-1)
-#define TL_TAB_LEN (13*2*TL_RES_LEN)
 
-signed int tl_tab[TL_TAB_LEN];
+signed int tl_tab[TL_RES_LEN];
 unsigned int sin_tab[SIN_LEN];
 
 void init_tables(void) // copied from fm.c
@@ -50,14 +50,7 @@ void init_tables(void) // copied from fm.c
 			n = n>>1;
 						/* 11 bits here (rounded) */
 		n <<= 2;        /* 13 bits here (as in real chip) */
-		tl_tab[ x*2 + 0 ] = n;
-		tl_tab[ x*2 + 1 ] = -tl_tab[ x*2 + 0 ];
-
-		for (i=1; i<13; i++)
-		{
-			tl_tab[ x*2+0 + i*2*TL_RES_LEN ] =  tl_tab[ x*2+0 ]>>i;
-			tl_tab[ x*2+1 + i*2*TL_RES_LEN ] = -tl_tab[ x*2+0 + i*2*TL_RES_LEN ];
-		}
+		tl_tab[ x ] = n;
 	}
 
 	for (i=0; i<SIN_LEN; i++)
@@ -85,16 +78,14 @@ void init_tables(void) // copied from fm.c
 }
 
 void dump_tl_tab() {
-	// cout.setf( ios::hex, ios::basefield );
-  for( int i=0; i<TL_TAB_LEN; i++ ) {
-    cout << i << " => " << tl_tab[i] << "\n";
+  for( int i=0; i<TL_RES_LEN; i++ ) {
+    cout <<  tl_tab[i] << "\n";
   }
 }
 
 void dump_sin_tab() {
-	// cout.setf( ios::hex, ios::basefield );
   for( int i=0; i<SIN_LEN; i++ ) {
-    cout /*<< i << " => " */<< sin_tab[i] << "\n";
+    cout << sin_tab[i] << "\n";
   }
 }
 
@@ -110,8 +101,21 @@ unsigned conv( double x ) {
   return (unsigned)(xmax* 20*log(x+0.5));
 }
 
-int main(void) {
+int main(int argc, char *argv[]) {
+  arg_vector_t legal_args;
+  argument_t arg_hex( legal_args, "hex", argument_t::flag, 
+    "set output to hexadecimal mode" );
+  argument_t arg_sin( legal_args, "sin", argument_t::flag,
+    "dump sine wave" );
+  argument_t arg_pow( legal_args, "pow", argument_t::flag,
+    "dump power table" );
+  Args args_parser( argc, argv, legal_args );
+  if( args_parser.help_request() ) { return 0; }
+  if( argc==1 ) { args_parser.show_help(); return 0; }
   init_tables();  
-	dump_composite();
+	//dump_composite();
+	if( arg_hex.is_set() ) cout.setf( ios::hex, ios::basefield );
+	if( arg_pow.is_set() ) dump_tl_tab();
+	if( arg_sin.is_set() ) dump_sin_tab();	
 	return 0;
 }

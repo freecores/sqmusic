@@ -47,12 +47,20 @@ class Args {
   argument_t* def_arg;
   std::string program_name;
   argument_t help_arg;
-public:
+  void clean_args() {
+    for( int j=0; j<legal_args.size(); j++ ) {
+      argument_t& a = *legal_args[j];
+      if( a.short_name=="-h" && a.long_name!="help" )
+        { help_arg.short_name.clear(); break; } // remove -h for help if already used
+    }
+  }
   void throw_error( std::string x ) /*throw const char**/ { throw x.c_str(); }
+public:
   Args( int argc, char *argv[], arg_vector_t& legal_args ) //throw const char *
   : legal_args( legal_args ), 
     help_arg( legal_args, "help", argument_t::flag, "Display usage information")
-  {    
+  {
+    clean_args(); // eliminate duplicated values
     // look for default argument
     def_arg=NULL;
     for( int j=0; j<legal_args.size(); j++ ) {
@@ -132,7 +140,7 @@ public:
       std::cout << "\t";
       std::string aux;
       if( !a.long_name.empty() ) aux = a.long_name;
-      if( !a.long_name.empty() && !a.long_name.empty() ) aux += " | ";
+      if( !a.long_name.empty() && !a.short_name.empty() ) aux += " | ";
       if( !a.short_name.empty() ) aux+= a.short_name;
       std::cout << brackets( a, aux );
       switch( a.type ) {
