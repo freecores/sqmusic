@@ -125,6 +125,13 @@ public:
       }
     }
   }
+  void check_ilegal_combinations( arg_vector_t& ilegal ) {
+    int count=0;
+    std::string names;
+    for( int k=0; k < ilegal.size(); k++ )
+      if( ilegal[k]->is_set() ) { count++; names += " " + ilegal[k]->long_name; }
+    if( count>1 ) throw_error( "Parameters" + names + " cannot be used together" );
+  }
   bool help_request() { if( help_arg.is_set() ) show_help(); return help_arg.is_set(); }
   std::string brackets( const argument_t& a, std::string s ) {
     return a.req ?  "<"+s+">" : "["+s+"]"; 
