@@ -212,3 +212,124 @@ always @(posedge clk or negedge reset_n ) begin
 end
 
 endmodule
+
+///////////////////////////////////////////////////////////////////
+// sq_opn_eg => Envelope generator
+module sq_opn_eg(
+	input clk,
+	input reset_n,
+	input ce_n, // count enable, active low
+	input key_on,
+	input key_off,
+  input [1:0] ks, // key scale
+  input [5:0] ar, // attack rate
+  input [5:0] dr, // decay rate
+  input [5:0] sr, // sustain rate 
+  input [3:0] rr, // release rate   
+  input [3:0] sl, // sustain level
+  input [3:0] block,
+  input [1:0] note,
+  input [6:0] tl, // total level
+  output reg [6:0] env, // envelope
+  output onwait // EG is on wait state
+);
+
+reg [2:0] state;
+/*
+reg [6:0] f_ar, // final attack rate
+  f_dr, // final decay rate
+  f_sr, // final sustain rate
+  f_rr; // final release rate
+*/
+parameter st_wait   = 3'd0; // wait for key_on
+parameter st_attack = 3'd1;
+parameter st_decay  = 3'd2;
+parameter st_sustain= 3'd3;
+parameter st_release= 3'd4;
+
+assign onwait = state == st_wait;
+
+reg [7:0] cr; // current rate used for calculations
+reg [7:0] f_sl; // final sustain level: f_sl = tl+sl
+wire [7:0] next_env =  { 1'b0, env } + cr;
+wire attack_over = next_env <= tl || next_env>env;
+wire decay_over  = next_env >= f_sl;
+wire sustain_over= next_env >= 8'h7F;
+//wire neg  = next_env[7];
+
+always @(posedge clk or negedge reset_n ) begin
+	if( !reset_n ) begin
+	  state <= st_wait;
+	  env   <= 7'h7F;
+	end
+	else begin
+	  case( state )
+	  st_wait:
+      if( key_on ) begin
+        state <= st_attack;
+        cr    <= ~ { 2'b0, ar, ar[0] } + 1'b1; 
+        env   <= 7'h7F; // is it ok to reset it?
+        f_sl  <= { 2'b0, sl, 2'b0 } + {1'b0, tl }; // f_sl = sl + tl
+      end
+      else begin
+        state <=st_wait;
+        env   <= 7'h7F;
+	    end
+    st_attack:
+      if( !ce_n )
+        if( attack_over ) begin
+          env   <= tl;
+          cr    <= { 2'b0, dr, dr[0] };
+          state <= st_decay;
+          f_sl  <= f_sl[7] ? 8'h7F : f_sl; // clamp the result to 7F
+        end
+        else begin      
+          env   <= next_env;
+          state <= st_attack;
+        end
+    st_decay: 
+      if( !ce_n )
+        if( decay_over ) begin
+          env   <= f_sl;
+          cr    <= { 2'b0, sr, sr[0] };
+          state <= st_sustain;
+        end
+        else begin
+          env   <= next_env;
+          state <= st_decay;
+        end
+    st_sustain:
+      if( key_off ) begin
+        env   <= next_env;
+        cr    <= { 1'b0, rr, 3'b0 };
+        state <= st_release;
+      end
+      else
+      if( sustain_over ) begin
+        if( !ce_n ) begin
+          env   <= 7'h7F;
+          state <= st_wait;
+        end
+      end
+      else if( !ce_n ) begin
+        env   <= next_env;
+        state <= st_sustain;
+      end
+    st_release:
+      if( sustain_over ) begin
+        env   <= 7'h7F;
+        state <= st_wait;
+      end
+      else if( !ce_n ) begin
+        env   <= next_env;
+        state <= st_release;
+      end      
+	    default: begin
+	      state <=st_wait;
+	      env   <= 7'h7F;
+	    end
+	  endcase
+  end
+end
+
+endmodule
