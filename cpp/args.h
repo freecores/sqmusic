@@ -17,6 +17,12 @@
 typedef std::vector<struct argument_t*> arg_vector_t;
 
 struct argument_t {
+protected:
+	int imin, imax;
+	float fmin, fmax;
+	bool limits;
+	template<typename A> bool pass( A a, A b, A x ) { return x>=a && x<=b; }
+public:
   std::string short_name, long_name;
   typedef enum { integer, text, flag, real } arg_type;
   arg_type type;
@@ -26,11 +32,14 @@ struct argument_t {
   std::string string_value;
   float real_value;  
   bool state, req;
+	
+	bool parse_hex;
   
   argument_t( arg_vector_t& av, const char* long_name, arg_type type,
     const char* desc="", bool required=false ) 
     : long_name(long_name), type( type ), description( desc ),
-      req(required), state(false), integer_value(0), real_value(0)
+      req(required), state(false), integer_value(0), real_value(0),
+			parse_hex(false), limits(false)
   {
     if( !this->long_name.empty() ) {
       this->short_name = "-" + this->long_name.substr(0,1);
@@ -40,7 +49,37 @@ struct argument_t {
   }
   void set() { state=true; }
   bool is_set() { return state; }
+	// range control
+	void setlimits( int min, int max ) {
+		if( type == integer ) {
+			imin = min;
+			imax = max;
+			limits = true;
+		}
+		else if( type == real ) {
+			fmin = (float) min;
+			fmax = (float) max;
+			limits = true;
+		}
+		else throw "Cannot apply integer limits to this type of input argument";
+	}
+	void setlimits( float min, float max ) {
+		if( type == real ) {
+			fmin = min;
+			fmax = max;
+			limits = true;
+		}
+		else throw "Cannot apply real limits to this type of input argument";
+	}	
+	bool passlimits() {
+		if( !limits ) return true;
+		if( type == real ) return pass( fmin, fmax, real_value );
+		else if ( type == integer ) return pass( imin, imax, integer_value );
+		return false;
+	}
 };
+
+
 
 class Args {
   arg_vector_t& legal_args;
@@ -69,7 +108,7 @@ public:
         else throw "Cannot set more than one default argument.";
     }
     if( def_arg && def_arg->type!=argument_t::integer && def_arg->type!=argument_t::text )
-      throw "Default arguments can only be of type integer or text";
+      throw "Default arguments can only be integer or text";
 
     program_name = argv[0];
     for( int k=1; k<argc; k++ ) {
@@ -89,7 +128,14 @@ public:
           if( a.type == argument_t::integer ) {
             k++;
             if( k>=argc ) throw_error("Expecting input after "+a.long_name+" param");
-            a.integer_value = atoi(argv[k]);
+						if( !a.parse_hex ) 
+	            a.integer_value = atoi(argv[k]);						
+						else {
+							errno = 0;
+							a.integer_value = strtol( argv[k], NULL, 16 ); 
+							if( errno ) throw "Cannot parse hexadecimal argument";							
+						}
+						if( !a.passlimits() ) throw_error("Argument "+a.long_name+" is not within its allowed range");
             a.set();
             matched=true;
             continue;
@@ -98,6 +144,7 @@ public:
             k++;
             if( k>=argc ) throw_error("Expecting input after "+a.long_name+" param");
             a.real_value = atof(argv[k]);
+						if( !a.passlimits() ) throw_error("Argument "+a.long_name+" is not within its allowed range");
             a.set();
             matched=true;
             continue;
